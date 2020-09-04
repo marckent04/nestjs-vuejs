@@ -4,23 +4,30 @@ const { argv } = require('yargs')
 const util = require('util');
 const exec = util.promisify(require('child_process').exec)
 
-// const name = argv.name
-const name = argv._[0]
 
-const makeFull = async (name) => {
-    const common = async (elt) => {
-        const { stdout, stderr } = await exec(`nest g ${elt} ./modules/${name.toLowerCase()}`)
-        if (stderr)
-            throw new Error(stderr)
+const common = async (elt, name, dest) => {
 
-        console.log(stdout)
-    }
+    const command = `nest g ${elt} ./${dest}/${name.toLowerCase()}`
+
+    const { stdout, stderr } = await exec(command)
+    if (stderr)
+        throw new Error(stderr)
+
+    console.log(stdout)
+}
+const makeFull = async () => {
+    const params = argv._
+
+    const [name, dest] = params
+
+    const path = dest || 'modules'
 
     if (typeof name === 'string') {
         if (isNaN(+name[0])) {
-            await common('mo')
-            await common('co')
-            await common('s')
+
+            await common('mo', name, path)
+            await common('co', name, path)
+            await common('s', name, path)
         } else
             console.log('entrer un nom correct : --name {nom du module}')
     } else
@@ -29,4 +36,4 @@ const makeFull = async (name) => {
 
 }
 
-makeFull(name)
+makeFull()
