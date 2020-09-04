@@ -1,0 +1,116 @@
+'use strict';
+
+const inquirer = require('inquirer')
+const fs = require('fs')
+const path = require('path')
+const Str = require('string')
+const util = require('util')
+const exec = util.promisify(require('child_process').exec)
+
+
+console.log('Hi, welcome to entity manager')
+
+const fileExists = (name) => {
+    const dest = path.join(__dirname, '..', 'entities', `${name}.ts`)
+    if (fs.existsSync(dest)) {
+        return "Cette entité existe deja"
+    }
+    return true
+}
+
+const addNewProperty = async (entityName) => {
+    const questions = [
+        {
+            type: 'input',
+            name: 'name',
+            message: "Nom de la propriété",
+            validate: function (value) {
+                if (isNaN(value[0]))
+                    return fileExists(Str(value).capitalize().s)
+
+                return 'Entrer un nom valide';
+            },
+        },
+        {
+            type: 'list',
+            name: 'type',
+            message: 'Type de la propriété ?',
+            choices: ['string', 'number', 'boolean', 'Date'],
+            filter: function (val) {
+                return val.toLowerCase();
+            },
+        },
+        {
+            type: 'confirm',
+            name: 'required',
+            message: 'champ obligatoire*',
+            default: true,
+        },
+        {
+            type: 'confirm',
+            name: 'add',
+            message: 'ajouter nouvelle propriété',
+            default: true,
+        },
+    ];
+
+    inquirer.prompt(questions).then(async (answers) => {
+        try {
+            const file = path.join(__dirname, '..', 'entities', `${entityName}.ts`)
+
+            const { name, type, add } = answers
+            let content = fs.readFileSync(file).toString().split('\n')
+            let lastIndex = content.lastIndexOf('}')
+            content.splice(lastIndex, 0, '\t@Column()');
+            content.splice(++lastIndex, 0, `\t${name}: ${type}\n`);
+            fs.writeFileSync(file, content.join('\n'))
+            if (add) return addNewProperty(entityName)
+        } catch (error) {
+            console.log(error);
+        }
+        // if (answers.add) return addNewProperty(entityName)
+    })
+
+
+}
+
+const createNewEntity = async (name) => {
+    return await exec(`yarn typeorm entity:create -n ${name} -d ./src/entities`)
+    // fs.renameSync(`./src/entities/${name}.ts`, `./src/entities/${name}.entity.ts`)
+}
+
+const initEntity = async (entityName) => {
+    const file = path.join(__dirname, '..', 'entities', `${entityName}.ts`)
+    let content = fs.readFileSync(file).toString().split('\n')
+    content[0] = 'import {Entity, Column, CreateDateColumn, PrimaryGeneratedColumn, UpdateDateColumn} from "typeorm"'
+    content.splice(5, 0, '\t@PrimaryGeneratedColumn()\n\tid: number\n\n\t@CreateDateColumn()\n\tcreateDate: Date\n\t@UpdateDateColumn()\n\tupdateDate: Date\n')
+    fs.writeFileSync(file, content.join('\n'))
+
+}
+
+const questions = [
+    {
+        type: 'input',
+        name: 'name',
+        message: "Nom de l'entité",
+        validate: function (value) {
+            if (isNaN(value[0]))
+                return fileExists(Str(value).capitalize().s)
+
+            return 'Entrer un nom valide';
+        },
+    }
+];
+
+inquirer.prompt(questions)
+    .then(async (answers) => {
+        const { stderr, stdout } = await createNewEntity(answers.name)
+        initEntity(answers.name)
+        if (stderr) {
+            console.log(stderr);
+        } else {
+            console.log(stdout);
+            addNewProperty(answers.name)
+        }
+    })
+
